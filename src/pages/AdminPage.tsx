@@ -1,56 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
-import { mockSites } from "@/data/sites";
+import { getPendingSites, approveSite, rejectSite, SiteFromApi } from "@/hooks/useSitesApi";
 
 type Status = "pending" | "approved" | "rejected";
-
-interface AdminSite {
-  id: number;
-  name: string;
-  url: string;
-  description: string;
-  screenshot: string;
-  category: string;
-  submittedBy: string;
-  submittedAt: string;
-  status: Status;
-}
-
-const initialSites: AdminSite[] = [
-  ...mockSites.map((s) => ({
-    id: s.id,
-    name: s.name,
-    url: s.url,
-    description: s.description,
-    screenshot: s.screenshot,
-    category: s.category,
-    submittedBy: "user@example.com",
-    submittedAt: "2024-03-25",
-    status: "approved" as Status,
-  })),
-  {
-    id: 10,
-    name: "НовыйСтартап.ру",
-    url: "https://newstartup.ru",
-    description: "Платформа для стартапов и инвесторов в России.",
-    screenshot: "https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=600&h=338&fit=crop",
-    category: "Бизнес",
-    submittedBy: "startup@mail.ru",
-    submittedAt: "2024-03-29",
-    status: "pending" as Status,
-  },
-  {
-    id: 11,
-    name: "МузыкаОнлайн",
-    url: "https://musiconline.ru",
-    description: "Стриминг музыки с российскими исполнителями.",
-    screenshot: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&h=338&fit=crop",
-    category: "Развлечения",
-    submittedBy: "music@yandex.ru",
-    submittedAt: "2024-03-30",
-    status: "pending" as Status,
-  },
-];
 
 const statusLabels: Record<Status, { label: string; color: string }> = {
   pending: { label: "На проверке", color: "bg-amber-50 text-amber-600 border-amber-100" },
@@ -58,76 +10,63 @@ const statusLabels: Record<Status, { label: string; color: string }> = {
   rejected: { label: "Отклонён", color: "bg-red-50 text-red-500 border-red-100" },
 };
 
-const adminStats = [
-  { label: "Всего сайтов", value: "12 400", icon: "Globe", color: "gradient-blue" },
-  { label: "На модерации", value: "24", icon: "Clock", color: "bg-amber-500" },
-  { label: "Пользователей", value: "34 200", icon: "Users", color: "bg-violet-500" },
-  { label: "Переходов сегодня", value: "284K", icon: "TrendingUp", color: "bg-emerald-500" },
-];
-
 export default function AdminPage() {
-  const [sites, setSites] = useState<AdminSite[]>(initialSites);
-  const [filter, setFilter] = useState<"all" | Status>("all");
-  const [activeTab, setActiveTab] = useState<"moderation" | "users" | "stats">("moderation");
+  const [sites, setSites] = useState<SiteFromApi[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"moderation" | "stats">("moderation");
+  const [processingId, setProcessingId] = useState<number | null>(null);
 
-  const filtered = sites.filter((s) => filter === "all" || s.status === filter);
-  const pendingCount = sites.filter((s) => s.status === "pending").length;
+  useEffect(() => {
+    setLoading(true);
+    getPendingSites().then((data) => {
+      setSites(data);
+      setLoading(false);
+    });
+  }, []);
 
-  const approve = (id: number) => setSites((prev) => prev.map((s) => s.id === id ? { ...s, status: "approved" } : s));
-  const reject = (id: number) => setSites((prev) => prev.map((s) => s.id === id ? { ...s, status: "rejected" } : s));
+  const handleApprove = async (id: number) => {
+    setProcessingId(id);
+    await approveSite(id);
+    setSites((prev) => prev.filter((s) => s.id !== id));
+    setProcessingId(null);
+  };
+
+  const handleReject = async (id: number) => {
+    setProcessingId(id);
+    await rejectSite(id);
+    setSites((prev) => prev.filter((s) => s.id !== id));
+    setProcessingId(null);
+  };
 
   return (
     <div className="py-10">
       <div className="container max-w-7xl mx-auto px-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-1 h-6 bg-primary rounded-full" />
-              <span className="text-xs font-semibold text-primary uppercase tracking-widest">Система</span>
-            </div>
-            <h1 className="font-display font-black text-3xl text-foreground">Панель администратора</h1>
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-1 h-6 bg-primary rounded-full" />
+            <span className="text-xs font-semibold text-primary uppercase tracking-widest">Панель администратора</span>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-100">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse-slow" />
-            <span className="text-sm font-medium text-amber-700">{pendingCount} на модерации</span>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {adminStats.map((s) => (
-            <div key={s.label} className="bg-white rounded-2xl border border-border shadow-card p-5">
-              <div className={`w-10 h-10 rounded-xl ${s.color} flex items-center justify-center mb-3`}>
-                <Icon name={s.icon} size={18} className="text-white" />
-              </div>
-              <div className="font-display font-black text-2xl text-foreground">{s.value}</div>
-              <div className="text-xs text-muted-foreground mt-1">{s.label}</div>
-            </div>
-          ))}
+          <h1 className="font-display font-black text-4xl text-foreground">Управление каталогом</h1>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-8">
           {[
-            { key: "moderation", label: "Модерация", icon: "Shield" },
-            { key: "users", label: "Пользователи", icon: "Users" },
-            { key: "stats", label: "Аналитика", icon: "BarChart2" },
-          ].map((t) => (
+            { id: "moderation", label: "Модерация", icon: "ClipboardCheck" },
+            { id: "stats", label: "Статистика", icon: "BarChart2" },
+          ].map((tab) => (
             <button
-              key={t.key}
-              onClick={() => setActiveTab(t.key as "moderation" | "users" | "stats")}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as "moderation" | "stats")}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                activeTab === t.key
-                  ? "bg-primary text-white shadow-blue"
-                  : "bg-white border border-border text-muted-foreground hover:text-foreground"
+                activeTab === tab.id ? "bg-primary text-white shadow-blue" : "bg-white border border-border text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Icon name={t.icon} size={15} />
-              {t.label}
-              {t.key === "moderation" && pendingCount > 0 && (
-                <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center">
-                  {pendingCount}
+              <Icon name={tab.icon} size={15} />
+              {tab.label}
+              {tab.id === "moderation" && sites.length > 0 && (
+                <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${activeTab === "moderation" ? "bg-white/20 text-white" : "bg-amber-100 text-amber-600"}`}>
+                  {sites.length}
                 </span>
               )}
             </button>
@@ -135,142 +74,106 @@ export default function AdminPage() {
         </div>
 
         {activeTab === "moderation" && (
-          <>
-            {/* Filter */}
-            <div className="flex gap-2 mb-5">
-              {(["all", "pending", "approved", "rejected"] as const).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                    filter === f
-                      ? "bg-foreground text-white"
-                      : "bg-white border border-border text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {f === "all" ? "Все" : statusLabels[f].label}
-                  <span className="ml-1.5 text-xs opacity-60">({f === "all" ? sites.length : sites.filter((s) => s.status === f).length})</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Sites list */}
-            <div className="space-y-4">
-              {filtered.map((site) => (
-                <div key={site.id} className="bg-white rounded-2xl border border-border shadow-card p-5 flex gap-4 animate-fade-in">
-                  <img
-                    src={site.screenshot}
-                    alt={site.name}
-                    className="w-32 h-18 object-cover rounded-xl shrink-0 w-32 h-[72px]"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="font-bold text-base text-foreground">{site.name}</h3>
-                        <a href={site.url} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1">
-                          <Icon name="Link" size={11} />
-                          {site.url}
-                        </a>
+          <div>
+            {loading ? (
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="bg-white rounded-2xl border border-border p-5 animate-pulse">
+                    <div className="flex gap-4">
+                      <div className="w-32 h-20 bg-muted rounded-xl" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-muted rounded w-1/3" />
+                        <div className="h-3 bg-muted rounded w-full" />
+                        <div className="h-3 bg-muted rounded w-2/3" />
                       </div>
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full border shrink-0 ${statusLabels[site.status].color}`}>
-                        {statusLabels[site.status].label}
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-2 line-clamp-1">{site.description}</p>
-                    <div className="flex items-center gap-3 mt-3 flex-wrap">
-                      <span className="tag-badge">{site.category}</span>
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Icon name="User" size={11} />
-                        {site.submittedBy}
-                      </span>
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Icon name="Calendar" size={11} />
-                        {site.submittedAt}
-                      </span>
-                      {site.status === "pending" && (
-                        <div className="flex gap-2 ml-auto">
-                          <button
-                            onClick={() => approve(site.id)}
-                            className="flex items-center gap-1.5 px-4 py-1.5 bg-green-500 text-white text-xs font-semibold rounded-xl hover:bg-green-600 transition-colors"
-                          >
-                            <Icon name="CheckCircle" size={13} />
-                            Одобрить
-                          </button>
-                          <button
-                            onClick={() => reject(site.id)}
-                            className="flex items-center gap-1.5 px-4 py-1.5 bg-red-50 text-red-500 border border-red-100 text-xs font-semibold rounded-xl hover:bg-red-100 transition-colors"
-                          >
-                            <Icon name="XCircle" size={13} />
-                            Отклонить
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {activeTab === "users" && (
-          <div className="bg-white rounded-2xl border border-border shadow-card overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 border-b border-border">
-                <tr>
-                  <th className="text-left px-5 py-3.5 font-semibold text-foreground text-xs">Пользователь</th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-foreground text-xs">Email</th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-foreground text-xs">Сайтов</th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-foreground text-xs">Дата регистрации</th>
-                  <th className="text-left px-5 py-3.5 font-semibold text-foreground text-xs">Статус</th>
-                </tr>
-              </thead>
-              <tbody>
-                {["Александр И.", "Мария С.", "Дмитрий К.", "Анна Р.", "Сергей Л."].map((name, i) => (
-                  <tr key={name} className="border-b border-border hover:bg-muted/30 transition-colors">
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full gradient-blue flex items-center justify-center">
-                          <Icon name="User" size={13} className="text-white" />
-                        </div>
-                        <span className="font-medium text-foreground">{name}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-muted-foreground">user{i + 1}@mail.ru</td>
-                    <td className="px-5 py-4 font-semibold text-foreground">{i + 1}</td>
-                    <td className="px-5 py-4 text-muted-foreground">2024-0{i + 1}-15</td>
-                    <td className="px-5 py-4">
-                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-600 border border-green-100">
-                        Активен
-                      </span>
-                    </td>
-                  </tr>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            ) : sites.length === 0 ? (
+              <div className="text-center py-20">
+                <div className="w-16 h-16 rounded-2xl bg-green-50 flex items-center justify-center mx-auto mb-4">
+                  <Icon name="CheckCircle2" size={28} className="text-green-500" />
+                </div>
+                <h3 className="font-bold text-lg text-foreground mb-2">Все сайты проверены</h3>
+                <p className="text-muted-foreground text-sm">Новых заявок на модерацию нет</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {sites.map((site) => (
+                  <div key={site.id} className="bg-white rounded-2xl border border-border shadow-card p-5 flex flex-col sm:flex-row gap-4 items-start animate-fade-in">
+                    <div className="w-full sm:w-40 shrink-0 aspect-video rounded-xl overflow-hidden bg-muted">
+                      {site.screenshot_url && (
+                        <img src={site.screenshot_url} alt={site.name} className="w-full h-full object-cover" />
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-3 mb-1">
+                        <h3 className="font-bold text-base text-foreground">{site.name}</h3>
+                        <span className={`shrink-0 text-xs font-semibold px-2 py-1 rounded-full border ${statusLabels[site.status as Status]?.color}`}>
+                          {statusLabels[site.status as Status]?.label}
+                        </span>
+                      </div>
+                      <a href={site.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1 mb-2">
+                        <Icon name="ExternalLink" size={12} />
+                        {site.url}
+                      </a>
+                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{site.description}</p>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Icon name="Mail" size={11} />
+                          {site.owner_email || "—"}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Icon name="Calendar" size={11} />
+                          {new Date(site.created_at).toLocaleDateString("ru")}
+                        </span>
+                        {site.category_name && (
+                          <span className="px-2 py-0.5 bg-secondary text-primary rounded-full font-medium">{site.category_name}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex sm:flex-col gap-2 w-full sm:w-auto">
+                      <button
+                        onClick={() => handleApprove(site.id)}
+                        disabled={processingId === site.id}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-green-500 text-white text-sm font-semibold rounded-xl hover:bg-green-600 transition-all disabled:opacity-50"
+                      >
+                        <Icon name="Check" size={14} />
+                        Одобрить
+                      </button>
+                      <button
+                        onClick={() => handleReject(site.id)}
+                        disabled={processingId === site.id}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-red-200 text-red-500 text-sm font-semibold rounded-xl hover:bg-red-50 transition-all disabled:opacity-50"
+                      >
+                        <Icon name="X" size={14} />
+                        Отклонить
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {activeTab === "stats" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: "Переходов сегодня", value: "284 120", trend: "+18%", icon: "MousePointerClick" },
-              { label: "Новых регистраций", value: "143", trend: "+7%", icon: "UserPlus" },
-              { label: "Добавлено сайтов", value: "12", trend: "+2", icon: "Globe" },
-              { label: "Одобрено заявок", value: "8", trend: "66%", icon: "CheckCircle" },
-            ].map((item) => (
-              <div key={item.label} className="bg-white rounded-2xl border border-border shadow-card p-6 flex items-center gap-5">
-                <div className="w-14 h-14 gradient-blue rounded-2xl flex items-center justify-center shadow-blue shrink-0">
-                  <Icon name={item.icon} size={24} className="text-white" />
+              { label: "Сайтов в каталоге", icon: "Globe", value: "6", color: "gradient-blue" },
+              { label: "На модерации", icon: "Clock", value: String(sites.length), color: "bg-amber-500" },
+              { label: "Категорий", icon: "LayoutGrid", value: "8", color: "bg-violet-500" },
+              { label: "Одобрено", icon: "CheckCircle2", value: "6", color: "bg-emerald-500" },
+            ].map((s) => (
+              <div key={s.label} className="bg-white rounded-2xl border border-border shadow-card p-5">
+                <div className={`w-11 h-11 rounded-xl ${s.color} flex items-center justify-center mb-4`}>
+                  <Icon name={s.icon} size={20} className="text-white" />
                 </div>
-                <div>
-                  <div className="font-display font-black text-3xl text-foreground">{item.value}</div>
-                  <div className="text-sm text-muted-foreground mt-0.5">{item.label}</div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <Icon name="TrendingUp" size={13} className="text-green-500" />
-                    <span className="text-xs font-semibold text-green-500">{item.trend}</span>
-                  </div>
-                </div>
+                <div className="font-display font-black text-2xl text-foreground mb-1">{s.value}</div>
+                <div className="text-sm text-muted-foreground">{s.label}</div>
               </div>
             ))}
           </div>

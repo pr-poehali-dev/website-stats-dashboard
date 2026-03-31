@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import Icon from "@/components/ui/icon";
 import SiteCard from "@/components/SiteCard";
-import { mockSites, mockNews } from "@/data/sites";
+import { mockNews } from "@/data/sites";
+import { useSites } from "@/hooks/useSitesApi";
 
 const stats = [
   { label: "Сайтов в каталоге", value: "12 400+", icon: "Globe" },
@@ -13,6 +14,7 @@ const stats = [
 
 export default function HomePage() {
   const [email, setEmail] = useState("");
+  const { sites, loading } = useSites({ sort: "visits" });
 
   return (
     <div>
@@ -89,13 +91,27 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mockSites.map((site, i) => (
-              <div key={site.id} className={`stagger-${i + 1}`}>
-                <SiteCard site={site} />
-              </div>
-            ))}
-          </div>
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="bg-white rounded-2xl border border-border shadow-card overflow-hidden animate-pulse">
+                  <div className="aspect-video bg-muted" />
+                  <div className="p-4 space-y-3">
+                    <div className="h-4 bg-muted rounded w-3/4" />
+                    <div className="h-3 bg-muted rounded w-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {sites.slice(0, 6).map((site, i) => (
+                <div key={site.id} className={`stagger-${i + 1}`}>
+                  <SiteCard site={site} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

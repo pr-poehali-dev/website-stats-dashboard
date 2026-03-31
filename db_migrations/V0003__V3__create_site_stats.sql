@@ -1,0 +1,1 @@
+CREATE TABLE t_p60960229_website_stats_dashbo.site_stats (id SERIAL PRIMARY KEY, site_id INTEGER, stat_date DATE NOT NULL DEFAULT CURRENT_DATE, visits INTEGER DEFAULT 0, views INTEGER DEFAULT 0, UNIQUE(site_id, stat_date))

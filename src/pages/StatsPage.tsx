@@ -1,29 +1,10 @@
 import { useParams } from "react-router-dom";
 import Icon from "@/components/ui/icon";
-import { mockSites } from "@/data/sites";
+import { useSiteStats } from "@/hooks/useSitesApi";
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Area, AreaChart, PieChart, Pie, Cell, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Area, AreaChart, PieChart, Pie, Cell,
 } from "recharts";
-
-const visitData = [
-  { day: "Пн", visits: 12400, views: 38000 },
-  { day: "Вт", visits: 15200, views: 44000 },
-  { day: "Ср", visits: 18900, views: 52000 },
-  { day: "Чт", visits: 14300, views: 41000 },
-  { day: "Пт", visits: 22100, views: 67000 },
-  { day: "Сб", visits: 19800, views: 58000 },
-  { day: "Вс", visits: 16500, views: 49000 },
-];
-
-const monthData = [
-  { month: "Янв", visits: 320000 },
-  { month: "Фев", visits: 410000 },
-  { month: "Мар", visits: 390000 },
-  { month: "Апр", visits: 480000 },
-  { month: "Май", visits: 520000 },
-  { month: "Июн", visits: 610000 },
-];
 
 const sourceData = [
   { name: "Поиск", value: 42, color: "#2563EB" },
@@ -50,9 +31,24 @@ function StatCard({ label, value, change, icon, color }: { label: string; value:
   );
 }
 
+function formatNum(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(0) + "K";
+  return String(n);
+}
+
 export default function StatsPage() {
   const { id } = useParams();
-  const site = mockSites.find((s) => s.id === Number(id)) || mockSites[0];
+  const { site, stats, loading } = useSiteStats(id || "1");
+
+  const chartData = stats.map((s) => ({
+    day: new Date(s.stat_date).toLocaleDateString("ru", { day: "2-digit", month: "2-digit" }),
+    visits: s.visits,
+    views: s.views,
+  }));
+
+  const totalVisits = stats.reduce((a, s) => a + s.visits, 0);
+  const totalViews = stats.reduce((a, s) => a + s.views, 0);
 
   return (
     <div className="py-10">
@@ -64,10 +60,10 @@ export default function StatsPage() {
               <div className="w-1 h-6 bg-primary rounded-full" />
               <span className="text-xs font-semibold text-primary uppercase tracking-widest">Статистика</span>
             </div>
-            <h1 className="font-display font-black text-3xl text-foreground">{site.name}</h1>
-            <a href={site.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors mt-1">
+            <h1 className="font-display font-black text-3xl text-foreground">{site?.name || "Загрузка..."}</h1>
+            <a href={site?.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors mt-1">
               <Icon name="ExternalLink" size={13} />
-              {site.url}
+              {site?.url}
             </a>
           </div>
           <div className="flex gap-2">
@@ -81,19 +77,19 @@ export default function StatsPage() {
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <StatCard label="Переходов" value="119.2K" change="+12.4%" icon="MousePointerClick" color="gradient-blue" />
-          <StatCard label="Просмотров" value="349.0K" change="+8.7%" icon="Eye" color="bg-violet-500" />
-          <StatCard label="Уникальных" value="84.3K" change="+15.2%" icon="Users" color="bg-emerald-500" />
-          <StatCard label="Место в топе" value={`#${site.rank}`} change="+2" icon="TrendingUp" color="bg-amber-500" />
+          <StatCard label="Переходов за 30 дней" value={loading ? "..." : formatNum(totalVisits)} change="+12.4%" icon="MousePointerClick" color="gradient-blue" />
+          <StatCard label="Просмотров за 30 дней" value={loading ? "..." : formatNum(totalViews)} change="+8.7%" icon="Eye" color="bg-violet-500" />
+          <StatCard label="Всего переходов" value={loading ? "..." : formatNum(site?.total_visits || 0)} change="+15.2%" icon="Users" color="bg-emerald-500" />
+          <StatCard label="Рейтинг" value={loading ? "..." : String(Number(site?.rating || 0).toFixed(1))} change="+2" icon="TrendingUp" color="bg-amber-500" />
         </div>
 
         {/* Charts row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           {/* Area Chart */}
           <div className="lg:col-span-2 bg-white rounded-2xl border border-border shadow-card p-6">
-            <h3 className="font-bold text-base text-foreground mb-6">Трафик за неделю</h3>
+            <h3 className="font-bold text-base text-foreground mb-6">Трафик за 30 дней</h3>
             <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={visitData}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="visitsGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#2563EB" stopOpacity={0.15} />
@@ -105,7 +101,7 @@ export default function StatsPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} interval={4} />
                 <YAxis tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} />
                 <Tooltip formatter={(v: number, n: string) => [`${v.toLocaleString()}`, n === "visits" ? "Переходов" : "Просмотров"]} contentStyle={{ borderRadius: "12px", border: "1px solid #E2E8F0", boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }} />
                 <Area type="monotone" dataKey="views" stroke="#60A5FA" strokeWidth={2} fill="url(#viewsGrad)" />
@@ -143,11 +139,11 @@ export default function StatsPage() {
 
         {/* Bar chart */}
         <div className="bg-white rounded-2xl border border-border shadow-card p-6 mb-6">
-          <h3 className="font-bold text-base text-foreground mb-6">Переходы по месяцам</h3>
+          <h3 className="font-bold text-base text-foreground mb-6">Переходы по дням</h3>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={monthData} barSize={36}>
+            <BarChart data={chartData} barSize={18}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} interval={4} />
               <YAxis tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} />
               <Tooltip formatter={(v: number) => [v.toLocaleString(), "Переходов"]} contentStyle={{ borderRadius: "12px", border: "1px solid #E2E8F0", boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }} cursor={{ fill: "rgba(37,99,235,0.04)" }} />
               <Bar dataKey="visits" fill="#2563EB" radius={[6, 6, 0, 0]} />
